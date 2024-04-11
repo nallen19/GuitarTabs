@@ -115,8 +115,7 @@ def check_file(file_id):
         if task_state == "success":
             update_percent("Progress: 100%\n")
             stem_track_url = check_result["split"]["stem_track"]
-            back_track_url = check_result["split"]["back_track"]
-            return stem_track_url, back_track_url
+            return stem_track_url
 
         time.sleep(15)
 
@@ -134,17 +133,15 @@ def get_filename_from_content_disposition(header):
     raise ValueError('Invalid header Content-Disposition')
 
 
-def download_file(url_for_download, output_path):
+def download_file(url_for_download, output_path, output_filename):
     with urlopen(url_for_download) as response:
-        filename = get_filename_from_content_disposition(response.headers["Content-Disposition"])
-        file_path = os.path.join(output_path, filename)
+        file_path = os.path.join(output_path, output_filename)
         with open(file_path, 'wb') as f:
-            while (chunk := response.read(8196)):
-                f.write(chunk)
+            f.write(response.read())
     return file_path
 
 
-def batch_process_for_file(license, input_path, output_path, stem, filter_type, splitter):
+def batch_process_for_file(license, input_path, output_path, stem, filter_type, splitter, output_filename):
     try:
         print(f'Uploading the file "{input_path}"...')
         file_id = upload_file(file_path=input_path, license=license)
@@ -152,29 +149,24 @@ def batch_process_for_file(license, input_path, output_path, stem, filter_type, 
 
         print(f'Processing the file "{input_path}"...')
         split_file(file_id, license, stem, filter_type, splitter)
-        stem_track_url, back_track_url = check_file(file_id)
 
+        stem_track_url = check_file(file_id)
         print(f'Downloading the stem track file "{stem_track_url}"...')
-        downloaded_file = download_file(stem_track_url, output_path)
+        downloaded_file = download_file(stem_track_url, output_path, output_filename)
+
         print(f'The stem track file has been downloaded to "{downloaded_file}"')
-
-        print(f'Downloading the back track file "{back_track_url}"...')
-        downloaded_file = download_file(back_track_url, output_path)
-        print(f'The back track file has been downloaded to "{downloaded_file}"')
-
         print(f'The file "{input_path}" has been successfully split')
     except Exception as err:
         print(f'Cannot process the file "{input_path}": {err}')
 
 
-def batch_process(license, input_path, output_path, stem, filter_type, splitter):
-    if os.path.isfile(input_path):
-        batch_process_for_file(license, input_path, output_path, stem, filter_type, splitter)
-    else:
-        for path in os.listdir(input_path):
-            path = os.path.join(input_path, path)
-            if os.path.isfile(path):
-                batch_process_for_file(license, path, output_path, stem, filter_type, splitter)
+def batch_process(license, file_path, output_path, stem, filter_type, splitter):
+    # Extract the number part from the file name to use in the output file name
+    file_name = os.path.basename(file_path)
+    num = file_name.rsplit('_', 1)[-1].replace('.mp3', '')
+    output_filename = f"{num}.wav"
+
+    batch_process_for_file(license, file_path, output_path, stem, filter_type, splitter, output_filename)
 
 
 def main():
